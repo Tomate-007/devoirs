@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="fr">
-<head>
+<head> 
+ <link rel="manifest" href="./manifest.json">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Mes devoirs</title>
@@ -256,7 +257,12 @@ document.addEventListener("change",async function(ev){
  var el=ev.target;if(el.dataset.a!=="impics"||!el.files[0])return;
  var l=parseICS(await el.files[0].text());S.tasks=S.tasks.concat(l);save();render();say(l.length+" événement(s) importé(s).")});
 document.addEventListener("toggle",function(e){var t=e.target;if(t.tagName!=="DETAILS")return;if(t.dataset.f)openF[t.dataset.f]=t.open;else lo=t.open},true);
-render();initSync();icons();
-</script>
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", function () {
+    navigator.serviceWorker.register("./sw.js").catch(function () {});
+  });
+}
+ render();initSync();icons();
+</script> 
 </body>
 </html>
