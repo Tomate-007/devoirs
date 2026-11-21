@@ -65,7 +65,7 @@ label.b{display:block;text-align:center;font:inherit;font-weight:600;padding:8px
 <nav id="nav"></nav>
 <script>
 var KEY="devoirs-v1",API_KEY_STORAGE="devoirs-gemini-key",THEME_STORAGE="devoirs-theme";
-var S={tasks:[],courses:[],fiches:[],links:[]},tab="devoirs",busy="",pend=[],openF={},weekOff=0;
+var S={tasks:[],courses:[],fiches:[],links:[]},tab="devoirs",busy="",pend=[],lo=false,openF={},weekOff=0;
 var TABS=[["devoirs","Devoirs"],["agenda","Agenda"],["cours","Cours"],["fiches","Fiches"]];
 try{var r=localStorage.getItem(KEY);if(r)S=Object.assign(S,JSON.parse(r))}catch(e){}
 try{var th=localStorage.getItem(THEME_STORAGE);if(th)document.documentElement.setAttribute("data-theme",th)}catch(e){}
@@ -100,7 +100,7 @@ function setupPWA(){
       var manifest={
         name:"Mes devoirs",
         short_name:"Devoirs",
-        start_url:location.pathname||"./",
+        start_url:location.href,
         display:"standalone",
         background_color:"#6d4aff",
         theme_color:"#6d4aff",
@@ -120,184 +120,6 @@ function setupPWA(){
 
 function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]})}
 var IC={devoirs:'<path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>',agenda:'<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>',cours:'<path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3z"/><circle cx="12" cy="13" r="3"/>',fiches:'<path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/>',link:'<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>',alert:'<circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/>',down:'<path d="m6 9 6 6 6-6"/>',right:'<path d="m9 18 6-6-6-6"/>'};
-function ico(n){return'<svg class="ic" viewBox="0 0 24 24" aria-hidden="true">'+(IC[n]||"")+'</svg>'}
-function hue(s){if(!s)return 255;var h=7;s=s.toLowerCase().trim();for(var i=0;i<s.length;i++)h=(h*31+s.charCodeAt(i))%360;return h}
-function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,6)}
-function iso(d){return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
-var TODAY=iso(new Date());
-function days(a,b){return Math.round((new Date(b+"T00:00")-new Date(a+"T00:00"))/864e5)}
-function fmt(d){return new Date(d+"T00:00").toLocaleDateString("fr-FR",{weekday:"short",day:"numeric",month:"short"})}
-function rel(d){var n=days(TODAY,d);return n<0?"en retard ("+(-n)+" j)":n==0?"aujourd’hui":n==1?"demain":"dans "+n+" j"}
-function cls(t){if(t.done)return"";var n=days(TODAY,t.date);return n<0?"late":n<=1?"soon":""}
-function sorted(a){return a.slice().sort(function(x,y){return(x.done-y.done)||(x.date||"9").localeCompare(y.date||"9")||(y.prio-x.prio)})}
-function links(s){return esc(s).replace(/(https?:\/\/[^\s]+)/g,'<a href="$1" target="_blank" rel="noopener">$1</a>')}
-function md(s){var h="",o=false;esc(s).split("\n").forEach(function(l){
- var li=/^\s*[-*•]\s+(.*)/.exec(l),hd=/^#{1,4}\s+(.*)/.exec(l);
- if(li){if(!o){h+="<ul>";o=true}h+="<li>"+li[1]+"</li>";return}
- if(o){h+="</ul>";o=false}
- if(hd)h+="<h3>"+hd[1]+"</h3>";else if(l.trim())h+="<p style='margin:6px 0'>"+l+"</p>"});
- if(o)h+="</ul>";return h.replace(/\*\*(.+?)\*\*/g,"<b>$1</b>")}
-function taskHTML(t){return '<div class="card t '+(t.done?"d":"")+'" style="--h:'+hue(t.subject)+'"><input type="checkbox" '+(t.done?"checked":"")+' data-a="tog" data-id="'+t.id+'" aria-label="Fait"><div class="m"><div class="ti">'+esc(t.title)+'</div><div><span class="tag">'+esc(t.subject||"Autre")+'</span>'+(t.prio==2?'<span class="tag">'+ico("alert")+' urgent</span>':t.prio==0?'<span class="tag">faible</span>':'')+(t.date?'<span class="'+cls(t)+'">'+fmt(t.date)+' · '+rel(t.date)+'</span>':'')+'</div>'+(t.notes?'<div class="sub" style="margin:4px 0 0">'+links(t.notes)+'</div>':'')+'</div><button class="x" data-a="del" data-id="'+t.id+'" aria-label="Supprimer">×</button></div>'}
-function headerHTML(title){
- var hasKey=!!getApiKey();
- var th=document.documentElement.getAttribute("data-theme")||"light";
- return '<div class="topbar"><h1>'+title+'</h1><div style="display:flex;gap:6px;flex-wrap:wrap"><button class="pill-btn" data-a="theme">'+(th==="light"?"Sombre":"Clair")+'</button><button class="pill-btn" data-a="key">'+(hasKey?"Clé IA ✓":"Configurer clé IA")+'</button></div></div>';
-}
-function vDevoirs(){
- var open=S.tasks.filter(function(t){return!t.done}),late=open.filter(function(t){return t.date&&t.date<TODAY}).length,td=open.filter(function(t){return t.date===TODAY}).length;
- var h=headerHTML("Mes devoirs")+'<p class="sub">'+open.length+' à faire · '+td+' pour aujourd’hui · <span class="'+(late?"late":"")+'">'+late+' en retard</span></p>';
- h+='<div class="card"><div class="row"><input id="ts" placeholder="Matière (maths, histoire…)" list="subs"><input id="tt" placeholder="Devoir à faire"></div><datalist id="subs">'+subjects().map(function(s){return'<option value="'+esc(s)+'">'}).join("")+'</datalist><div class="row" style="margin-top:8px"><input id="td" type="date" value="'+TODAY+'"><select id="tp"><option value="1">Priorité normale</option><option value="2">Urgent</option><option value="0">Faible</option></select></div><textarea id="tn" placeholder="Ressources : liens, pages du manuel, consignes…" style="margin-top:8px;min-height:60px"></textarea>'+(S.links.length?'<select data-a="plink" style="margin-top:8px"><option value="">＋ Ajouter un lien préenregistré…</option>'+S.links.map(function(l){return'<option value="'+esc(l.name+" : "+l.url)+'">'+esc(l.name)+'</option>'}).join("")+'</select>':'')+'<div class="row" style="margin-top:8px"><button class="b p" data-a="add">Ajouter</button></div></div>';
- h+=linksHTML();
- var l=sorted(S.tasks);h+=l.length?l.map(taskHTML).join(""):'<div class="empty">Aucun devoir pour le moment</div>';
- return h}
-function linksHTML(){var L=S.links;return '<details class="card" '+(lo?"open":"")+'><summary style="cursor:pointer;font-weight:600">'+ico("link")+' Mes liens ('+L.length+') '+ico("down")+'</summary>'+(L.length?L.map(function(l,i){return'<div class="t" style="margin-top:8px"><div class="m"><a href="'+esc(l.url)+'" target="_blank" rel="noopener">'+esc(l.name)+'</a></div><button class="x" data-a="dell" data-id="'+i+'" aria-label="Supprimer">×</button></div>'}).join(""):'<p class="sub">Aucun lien pour l’instant.</p>')+'<div class="row" style="margin-top:10px"><input id="ln" placeholder="Nom (ex. Manuel de maths)"><input id="lu" placeholder="https://…" inputmode="url"></div><div class="row" style="margin-top:8px"><button class="b p" data-a="addl">Ajouter le lien</button></div></details>'}
-function subjects(){var s={};S.tasks.concat(S.courses).forEach(function(x){if(x.subject)s[x.subject]=1});return Object.keys(s)}
-function chip(t){return'<div class="ch p'+t.prio+(t.done?" d":"")+'" style="--h:'+hue(t.subject)+'"><input type="checkbox" '+(t.done?"checked":"")+' data-a="tog" data-id="'+t.id+'" aria-label="Fait"><span><b>'+esc(t.title)+'</b><small>'+esc(t.subject||"")+'</small></span></div>'}
-function vAgenda(){
- var open=S.tasks.filter(function(t){return!t.done&&t.date}),late=open.filter(function(t){return t.date<TODAY});
- var m=new Date();m.setHours(0,0,0,0);m.setDate(m.getDate()-((m.getDay()+6)%7)+weekOff*7);var e=new Date(m);e.setDate(e.getDate()+6);
- var h=headerHTML("Agenda")+'<div class="row" style="margin-bottom:6px"><button class="b" data-a="wk" data-id="-1">← Précédente</button><button class="b" data-a="wk" data-id="0">Cette semaine</button><button class="b" data-a="wk" data-id="1">Suivante →</button></div><p class="sub">Semaine du '+fmt(iso(m))+' au '+fmt(iso(e))+'</p>';
- if(late.length&&weekOff==0)h+='<h2 class="late">En retard</h2>'+sorted(late).map(taskHTML).join("");
- h+='<div class="wk" style="margin-top:10px">';
- for(var i=0;i<7;i++){var d=new Date(m);d.setDate(m.getDate()+i);var k=iso(d),l=sorted(S.tasks.filter(function(t){return t.date===k}));
-  h+='<div class="dy'+(k===TODAY?" now":"")+'"><h4>'+d.toLocaleDateString("fr-FR",{weekday:"short",day:"numeric",month:"short"})+'</h4>'+(l.length?l.map(chip).join(""):'<div class="sub" style="font-size:12px">—</div>')+'</div>'}
- h+='</div>';
- h+='<h2>Rappels & synchronisation</h2><div class="card"><p class="sub">Exporte un fichier .ics et importe-le dans Google Agenda ou l’agenda du téléphone : tu auras des notifications la veille à 18 h et le jour même à 7 h, même app fermée.</p><div class="row"><button class="b p" data-a="ics">Exporter vers mon agenda (.ics)</button><label class="b" style="text-align:center;cursor:pointer">Importer un .ics<input type="file" accept=".ics,text/calendar" data-a="impics" hidden></label></div><div class="st" id="st"></div></div>';
- return h}
-function vCours(){
- var h=headerHTML("Numériser un cours")+'<p class="sub">Prends en photo tes pages de cours : l’IA extrait le texte (modifiable), puis tu crées des fiches à la demande.</p>';
- h+='<div class="card"><div class="row"><input id="cs" placeholder="Matière" list="subs"><input id="ct" placeholder="Titre du cours"></div><div class="row" style="margin-top:8px"><label class="b" style="text-align:center;cursor:pointer">'+ico("cours")+' Photos / scans<input type="file" accept="image/*" multiple data-a="pics" hidden></label><button class="b p" data-a="ocr"'+(pend.length&&!busy?"":" disabled")+'>Extraire le texte ('+pend.length+')</button></div><div class="st">'+(busy==="ocr"?"Lecture des pages en cours…":"")+'</div><textarea id="cx" placeholder="…ou colle / tape directement ton cours ici" style="margin-top:8px;min-height:140px"></textarea><div class="row" style="margin-top:8px"><button class="b p" data-a="savec">Enregistrer le cours</button></div></div>';
- h+='<h2>Mes cours</h2>';
- h+=S.courses.length?S.courses.slice().reverse().map(function(c){return'<div class="card" style="--h:'+hue(c.subject)+'"><div class="t"><div class="m"><div class="ti">'+esc(c.title)+'</div><span class="tag">'+esc(c.subject||"Autre")+'</span><span class="sub">'+c.text.length+' caractères</span></div><button class="x" data-a="delc" data-id="'+c.id+'" aria-label="Supprimer">×</button></div><div class="row" style="margin-top:8px">'+[["resume","Résumé"],["fiche","Fiche de révision"],["cartes","Flashcards"],["quiz","Quiz"]].map(function(f){return'<button class="b" data-a="gen" data-k="'+f[0]+'" data-id="'+c.id+'"'+(busy?" disabled":"")+'>'+f[1]+'</button>'}).join("")+'</div>'+(busy==="gen"+c.id?'<div class="st">Création de la fiche…</div>':"")+'</div>'}).join(""):'<div class="empty">Aucun cours enregistré.</div>';
- return h}
-function vFiches(){
- var h=headerHTML("Mes fiches");
- h+=S.fiches.length?S.fiches.slice().reverse().map(function(f){return'<details class="card fc" data-f="'+f.id+'" style="--h:'+hue(f.subject)+'" '+(openF[f.id]?"open":"")+'><summary><span class="chev">'+ico("right")+'</span><span class="m"><span class="ti">'+esc(f.title)+'</span><br><span class="tag">'+esc(f.kind)+'</span></span></summary><div class="fiche">'+md(f.content)+'</div><div class="row" style="margin-top:8px"><button class="b" data-a="copy" data-id="'+f.id+'">Copier</button><button class="b" data-a="dlf" data-id="'+f.id+'">Télécharger</button><button class="b" data-a="delf" data-id="'+f.id+'">Supprimer</button></div></details>'}).join(""):'<div class="empty">Crée ta première fiche depuis l’onglet Cours.</div>';
- return h}
-
-function render(){
- var nav=document.getElementById("nav"),app=document.getElementById("app");
- if(nav)nav.innerHTML=TABS.map(function(t){return'<button data-a="tab" data-id="'+t[0]+'" class="'+(tab==t[0]?"on":"")+'">'+ico(t[0])+'<span>'+t[1]+'</span></button>'}).join("");
- if(!app)return;
- var keep=["cs","ct","cx","ts","tt","td","tn","tp","ln","lu"].map(function(i){var e=document.getElementById(i);return[i,e?e.value:null]});
- var fn={devoirs:vDevoirs,agenda:vAgenda,cours:vCours,fiches:vFiches}[tab]||vDevoirs;
- app.innerHTML=fn()+'<p id="syn" class="sub" style="text-align:center;margin-top:28px">'+syncLabel+'</p>';
- keep.forEach(function(k){var e=document.getElementById(k[0]);if(e&&k[1]!=null&&k[1]!=="")e.value=k[1]});
-}
-
-function say(m){var e=document.getElementById("st");if(e)e.textContent=m}
-function ics(){
- var ev=S.tasks.filter(function(t){return!t.done&&t.date}).map(function(t){var d=t.date.replace(/-/g,""),e=new Date(t.date+"T00:00");e.setDate(e.getDate()+1);
-  return["BEGIN:VEVENT","UID:"+t.id+"@devoirs","DTSTAMP:"+new Date().toISOString().replace(/[-:]|\.\d+/g,""),"DTSTART;VALUE=DATE:"+d,"DTEND;VALUE=DATE:"+iso(e).replace(/-/g,""),"SUMMARY:"+((t.subject?t.subject+" – ":"")+t.title).replace(/[,;\n]/g," "),"DESCRIPTION:"+(t.notes||"").replace(/\n/g," ").replace(/[,;]/g," "),"BEGIN:VALARM","ACTION:DISPLAY","DESCRIPTION:Devoir à rendre demain","TRIGGER:-PT6H","END:VALARM","BEGIN:VALARM","ACTION:DISPLAY","DESCRIPTION:Devoir à rendre aujourd’hui","TRIGGER:PT7H","END:VALARM","END:VEVENT"].join("\r\n")});
- return"BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Mes devoirs//FR\r\n"+ev.join("\r\n")+"\r\nEND:VCALENDAR\r\n"}
-function dl(name,data,type){
- try{
-  var blob=data instanceof Blob?data:new Blob([data],{type:type||"text/plain;charset=utf-8"});
-  var url=URL.createObjectURL(blob);
-  var a=document.createElement("a");a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();
-  setTimeout(function(){URL.revokeObjectURL(url)},1500);
-  say("Téléchargement lancé : "+name);
- }catch(e){say("Téléchargement impossible : utilise « Copier ».")}
-}
-function parseICS(t){var out=[];t.replace(/\r?\n[ \t]/g,"").split("BEGIN:VEVENT").slice(1).forEach(function(b){
- var s=/SUMMARY[^:]*:(.*)/.exec(b),d=/DTSTART[^:]*:(\d{4})(\d{2})(\d{2})/.exec(b),n=/DESCRIPTION[^:]*:(.*)/.exec(b);
- if(s&&d)out.push({id:uid(),subject:"",title:s[1].trim(),date:d[1]+"-"+d[2]+"-"+d[3],prio:1,done:false,notes:n?n[1].trim():""})});return out}
-function shrink(f){return new Promise(function(res,rej){var u=URL.createObjectURL(f),i=new Image();i.onload=function(){var k=Math.min(1,1600/Math.max(i.width,i.height)),c=document.createElement("canvas");c.width=i.width*k;c.height=i.height*k;c.getContext("2d").drawImage(i,0,0,c.width,c.height);URL.revokeObjectURL(u);c.toBlob(function(b){b?res(b):rej()},"image/jpeg",.82)};i.onerror=rej;i.src=u})}
-function blobToBase64(b){return new Promise(function(res,rej){var r=new FileReader();r.onload=function(){var s=String(r.result||"");res(s.split(",")[1]||"")};r.onerror=rej;r.readAsDataURL(b)})}
-
-async function askGemini(prompt,blobs){
- var key=getApiKey();
- if(!key)throw{code:"no_key"};
- var parts=[];
- if(blobs&&blobs.length){
-  for(var i=0;i<blobs.length;i++){
-   var b64=await blobToBase64(blobs[i]);
-   parts.push({inline_data:{mime_type:blobs[i].type||"image/jpeg",data:b64}});
-  }
- }
- parts.push({text:prompt});
- var resp=await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key="+encodeURIComponent(key),{
-  method:"POST",
-  headers:{"Content-Type":"application/json"},
-  body:JSON.stringify({contents:[{parts:parts}]})
- });
- if(resp.status===429)throw{code:"rate_limited"};
- if(!resp.ok){
-  var txt=await resp.text();
-  throw{code:"api",detail:resp.status+" "+txt.slice(0,180)};
- }
- var json=await resp.json();
- var out=(((json.candidates||[])[0]||{}).content||{}).parts||[];
- return out.map(function(p){return p.text||""}).join("\n").trim();
-}
-
-function err(e){
- busy="";render();
- var m=e&&e.code==="no_key"?"Ajoute d’abord ta clé API Gemini via le bouton « Configurer clé IA » en haut à droite.":
-       e&&e.code==="rate_limited"?"Limite de requêtes atteinte, réessaie dans un instant.":
-       e&&e.detail?"Erreur IA ("+e.detail+")":
-       "Une erreur est survenue lors de l’appel IA.";
- alert(m);
-}
-
-var PROMPTS={resume:"Écris un résumé clair et concis (10 à 15 lignes max) de ce cours, en français, avec les idées clés en **gras**.",fiche:"Crée une fiche de révision structurée en français : titres (## ), listes à puces, définitions, formules, dates ou exemples importants. Reste synthétique et mémorisable.",cartes:"Crée 10 flashcards en français pour réviser ce cours. Format exact, une par bloc : « **Q :** question » puis une ligne « **R :** réponse ».",quiz:"Crée un quiz de 8 questions en français sur ce cours, avec 3 choix (A, B, C) pour chacune. Termine par une section « ## Corrigé » avec les bonnes réponses et une courte explication."};
-var KIND={resume:"Résumé",fiche:"Fiche de révision",cartes:"Flashcards",quiz:"Quiz"};
-
-document.addEventListener("click",async function(ev){
- var el=ev.target.closest("[data-a]");if(!el||el.tagName==="INPUT"&&el.type==="file")return;
- var a=el.dataset.a,id=el.dataset.id,v=function(i){var e=document.getElementById(i);return e?e.value.trim():""};
- if(a==="theme"){toggleTheme();return}
- if(a==="key"){
-  var cur=getApiKey();
-  var next=prompt("Entre ta clé API Gemini (stockée uniquement sur cet appareil) :",cur);
-  if(next!==null){setApiKey(next);render();}
-  return;
- }
- if(a==="tab"){tab=id;render();return}
- if(a==="wk"){weekOff=id==="0"?0:weekOff+ +id;render();return}
- if(a==="addl"){var n=v("ln"),u=v("lu");if(!u){document.getElementById("lu").focus();return}if(!/^https?:\/\//i.test(u))u="https://"+u;S.links.push({name:n||u,url:u});lo=true;save();["ln","lu"].forEach(function(i){document.getElementById(i).value=""});render();return}
- if(a==="dell"){S.links.splice(+id,1);lo=true;save();render();return}
- if(a==="add"){if(!v("tt")){document.getElementById("tt").focus();return}
-  S.tasks.push({id:uid(),subject:v("ts"),title:v("tt"),date:v("td"),prio:+v("tp"),done:false,notes:v("tn")});save();["ts","tt","tn"].forEach(function(i){document.getElementById(i).value=""});render();return}
- if(a==="del"){S.tasks=S.tasks.filter(function(t){return t.id!==id});save();render();return}
- if(a==="ics"){dl("devoirs.ics",ics(),"text/calendar");return}
- if(a==="ocr"){if(!pend.length||busy)return;busy="ocr";render();
-  try{
-   var out=[];
-   for(var i=0;i<pend.length;i+=4){
-    var part=pend.slice(i,i+4);
-    var res=await askGemini("Transcris fidèlement tout le texte de ces pages de cours (dans l’ordre des images), en français, en gardant titres, listes et formules. Décris brièvement les schémas entre crochets. Réponds uniquement par la transcription.",part);
-    out.push(res);
-   }
-   pend=[];busy="";render();
-   var t=document.getElementById("cx");if(t)t.value=(t.value?t.value+"\n\n":"")+out.join("\n\n");
-  }catch(e){err(e)}return}
- if(a==="savec"){var t=v("cx");if(!t){document.getElementById("cx").focus();return}
-  S.courses.push({id:uid(),subject:v("cs"),title:v("ct")||"Cours du "+fmt(TODAY),text:t});save();["cs","ct","cx"].forEach(function(i){document.getElementById(i).value=""});render();return}
- if(a==="delc"){S.courses=S.courses.filter(function(c){return c.id!==id});save();render();return}
- if(a==="gen"){var c=S.courses.filter(function(c){return c.id===id})[0],k=el.dataset.k;if(!c||busy)return;busy="gen"+id;render();
-  try{
-   var txt=await askGemini(PROMPTS[k]+"\n\nMatière : "+(c.subject||"non précisée")+"\nTitre : "+c.title+"\n\nCours :\n"+c.text.slice(0,24000),[]);
-   S.fiches.push({id:uid(),title:c.title,subject:c.subject,kind:KIND[k],content:txt});save();busy="";tab="fiches";render();
-  }catch(e){err(e)}return}
- if(a==="delf"){S.fiches=S.fiches.filter(function(f){return f.id!==id});save();render();return}
- if(a==="copy"){var f=S.fiches.filter(function(f){return f.id===id})[0];try{await navigator.clipboard.writeText(f.content);el.textContent="Copié ✓"}catch(e){el.textContent="Copie impossible"}return}
- if(a==="dlf"){var f=S.fiches.filter(function(f){return f.id===id})[0];var n=(f.title+" - "+f.kind).replace(/[^\w\- àâçéèêëîïôûùü]/gi,"")+".md";dl(n,f.content,"text/markdown");return}
-});
-
-document.addEventListener("change",async function(ev){
- var el=ev.target,a=el.dataset&&el.dataset.a;
- if(a==="tog"){S.tasks.forEach(function(t){if(t.id===el.dataset.id)t.done=el.checked});save();render()}
- if(a==="pics"){var fs=Array.from(el.files).slice(0,12);try{pend=pend.concat(await Promise.all(fs.map(shrink))).slice(0,12)}catch(e){alert("Image illisible.")}render()}
- if(a==="plink"&&el.value){var n=document.getElementById("tn");n.value=(n.value?n.value+"\n":"")+el.value;el.value=""}
- if(a==="impics"){
-  if(!el.files[0])return;
-  var l=parseICS(await el.files[0].text());S.tasks=S.tasks.concat(l);save();render();say(l.length+" événement(s) importé(s).")
- }
-});
-document.addEventListener("toggle",function(e){var t=e.target;if(t.tagName!=="DETAILS")return;if(t.dataset.f)openF[t.dataset.f]=t.open;else lo=t.open},true);
-setupPWA();
-render();
-</script>
+function ico(n){return'<svg class="ic" viewBox="0 0 24 24" aria-hidden="true">'+(IC
 </body>
 </html>
