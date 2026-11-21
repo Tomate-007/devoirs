@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="fr" data-theme="light">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -9,13 +9,12 @@
 <meta name="apple-mobile-web-app-title" content="Devoirs">
 <meta name="theme-color" content="#6d4aff">
 <style>
-:root{--bg:#f4f3fb;--card:#fff;--tx:#1f1d33;--mut:#6e6b85;--ac:#6d4aff;--acx:#fff;--bd:#e5e2f5;--red:#d6336c;--grn:#12a37f;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);color-scheme:light}
-@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#14131f;--card:#1e1c2e;--tx:#eeedf8;--mut:#9d9ab8;--ac:#9b82ff;--acx:#14101f;--bd:#2f2c45;--red:#ff7aa8;--grn:#4fd8b4;color-scheme:dark}}
+:root{--bg:#f4f3fb;--card:#ffffff;--tx:#1f1d33;--mut:#6e6b85;--ac:#6d4aff;--acx:#ffffff;--bd:#e5e2f5;--red:#d6336c;--grn:#12a37f;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);color-scheme:light}
 :root[data-theme="dark"]{--bg:#14131f;--card:#1e1c2e;--tx:#eeedf8;--mut:#9d9ab8;--ac:#9b82ff;--acx:#14101f;--bd:#2f2c45;--red:#ff7aa8;--grn:#4fd8b4;color-scheme:dark}
 html{scroll-padding-top:env(safe-area-inset-top,0px)}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--tx);font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
-main{max-width:980px;margin:0 auto;padding:64px 14px 30px}
+main{max-width:980px;margin:0 auto;padding:68px 14px 30px}
 h1{font-size:22px;margin:4px 0 2px}h2{font-size:17px;margin:20px 0 8px}
 .sub{color:var(--mut);font-size:14px;margin:0 0 12px}
 nav{position:fixed;left:0;right:0;top:0;z-index:10;display:flex;background:var(--card);border-bottom:1px solid var(--bd);padding-top:env(safe-area-inset-top,0px)}
@@ -53,7 +52,6 @@ h1{font-size:27px;letter-spacing:-.02em}
 input[type=checkbox]{accent-color:var(--ac)}
 .card{border-radius:16px;box-shadow:0 1px 3px rgba(60,40,140,.07);border-left:4px solid hsl(var(--h,255) 65% 62%)}
 .tag{background:hsl(var(--h,255) 80% 94%);color:hsl(var(--h,255) 45% 32%);border:0;font-weight:500}
-@media(prefers-color-scheme:dark){:root:not([data-theme="light"]) .tag{background:hsl(var(--h,255) 35% 25%);color:hsl(var(--h,255) 80% 86%)}}
 :root[data-theme="dark"] .tag{background:hsl(var(--h,255) 35% 25%);color:hsl(var(--h,255) 80% 86%)}
 button.p{box-shadow:0 3px 8px color-mix(in srgb,var(--ac) 30%,transparent)}
 input,select,textarea,button.b{border-radius:10px}
@@ -78,10 +76,18 @@ label.b{display:block;text-align:center;font:inherit;font-weight:600;padding:8px
 <main id="app"></main>
 <nav id="nav"></nav>
 <script>
-var KEY="devoirs-v1",API_KEY_STORAGE="devoirs-gemini-key";
+var KEY="devoirs-v1",API_KEY_STORAGE="devoirs-gemini-key",THEME_STORAGE="devoirs-theme";
 var S={tasks:[],courses:[],fiches:[],links:[]},tab="devoirs",busy="",pend=[],openF={},weekOff=0;
 var TABS=[["devoirs","Devoirs"],["agenda","Agenda"],["cours","Cours"],["fiches","Fiches"]];
 try{var r=localStorage.getItem(KEY);if(r)S=Object.assign(S,JSON.parse(r))}catch(e){}
+try{var th=localStorage.getItem(THEME_STORAGE);if(th)document.documentElement.setAttribute("data-theme",th)}catch(e){}
+function toggleTheme(){
+ var cur=document.documentElement.getAttribute("data-theme")||"light";
+ var next=cur==="light"?"dark":"light";
+ document.documentElement.setAttribute("data-theme",next);
+ try{localStorage.setItem(THEME_STORAGE,next)}catch(e){}
+ render();
+}
 function getApiKey(){try{return localStorage.getItem(API_KEY_STORAGE)||""}catch(e){return""}}
 function setApiKey(k){try{if(k)localStorage.setItem(API_KEY_STORAGE,k.trim());else localStorage.removeItem(API_KEY_STORAGE)}catch(e){}}
 var syncLabel='<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/></svg> Mode local (appareil)';
@@ -146,7 +152,8 @@ function md(s){var h="",o=false;esc(s).split("\n").forEach(function(l){
 function taskHTML(t){return '<div class="card t '+(t.done?"d":"")+'" style="--h:'+hue(t.subject)+'"><input type="checkbox" '+(t.done?"checked":"")+' data-a="tog" data-id="'+t.id+'" aria-label="Fait"><div class="m"><div class="ti">'+esc(t.title)+'</div><div><span class="tag">'+esc(t.subject||"Autre")+'</span>'+(t.prio==2?'<span class="tag">'+ico("alert")+' urgent</span>':t.prio==0?'<span class="tag">faible</span>':'')+(t.date?'<span class="'+cls(t)+'">'+fmt(t.date)+' · '+rel(t.date)+'</span>':'')+'</div>'+(t.notes?'<div class="sub" style="margin:4px 0 0">'+links(t.notes)+'</div>':'')+'</div><button class="x" data-a="del" data-id="'+t.id+'" aria-label="Supprimer">×</button></div>'}
 function headerHTML(title){
  var hasKey=!!getApiKey();
- return '<div class="topbar"><h1>'+title+'</h1><button class="pill-btn" data-a="key">'+(hasKey?"Clé IA ✓":"Configurer clé IA")+'</button></div>';
+ var th=document.documentElement.getAttribute("data-theme")||"light";
+ return '<div class="topbar"><h1>'+title+'</h1><div style="display:flex;gap:6px;flex-wrap:wrap"><button class="pill-btn" data-a="theme">'+(th==="light"?"Sombre":"Clair")+'</button><button class="pill-btn" data-a="key">'+(hasKey?"Clé IA ✓":"Configurer clé IA")+'</button></div></div>';
 }
 function vDevoirs(){
  var open=S.tasks.filter(function(t){return!t.done}),late=open.filter(function(t){return t.date&&t.date<TODAY}).length,td=open.filter(function(t){return t.date===TODAY}).length;
@@ -180,11 +187,16 @@ function vFiches(){
  h+=S.fiches.length?S.fiches.slice().reverse().map(function(f){return'<details class="card fc" data-f="'+f.id+'" style="--h:'+hue(f.subject)+'" '+(openF[f.id]?"open":"")+'><summary><span class="chev">'+ico("right")+'</span><span class="m"><span class="ti">'+esc(f.title)+'</span><br><span class="tag">'+esc(f.kind)+'</span></span></summary><div class="fiche">'+md(f.content)+'</div><div class="row" style="margin-top:8px"><button class="b" data-a="copy" data-id="'+f.id+'">Copier</button><button class="b" data-a="dlf" data-id="'+f.id+'">Télécharger</button><button class="b" data-a="delf" data-id="'+f.id+'">Supprimer</button></div></details>'}).join(""):'<div class="empty">Crée ta première fiche depuis l’onglet Cours.</div>';
  return h}
 function render(){
- document.getElementById("nav").innerHTML=TABS.map(function(t){return'<button data-a="tab" data-id="'+t[0]+'" class="'+(tab==t[0]?"on":"")+'">'+ico(t[0])+'<span>'+t[1]+'</span></button>'}).join("");
- var keep=["cs","ct","cx","ts","tt","td","tn","tp","ln","lu"].map(function(i){var e=document.getElementById(i);return[i,e?e.value:null]});
- document.getElementById("app").innerHTML={devoirs:vDevoirs,agenda:vAgenda,cours:vCours,fiches:vFiches}[tab]();
- keep.forEach(function(k){var e=document.getElementById(k[0]);if(e&&k[1]!=null&&k[1]!=="")e.value=k[1]});
- document.getElementById("app").insertAdjacentHTML("beforeend",'<p id="syn" class="sub" style="text-align:center;margin-top:28px">'+syncLabel+'</p>')}
+ try{
+  document.getElementById("nav").innerHTML=TABS.map(function(t){return'<button data-a="tab" data-id="'+t[0]+'" class="'+(tab==t[0]?"on":"")+'">'+ico(t[0])+'<span>'+t[1]+'</span></button>'}).join("");
+  var keep=["cs","ct","cx","ts","tt","td","tn","tp","ln","lu"].map(function(i){var e=document.getElementById(i);return[i,e?e.value:null]});
+  document.getElementById("app").innerHTML={devoirs:vDevoirs,agenda:vAgenda,cours:vCours,fiches:vFiches}[tab]();
+  keep.forEach(function(k){var e=document.getElementById(k[0]);if(e&&k[1]!=null&&k[1]!=="")e.value=k[1]});
+  document.getElementById("app").insertAdjacentHTML("beforeend",'<p id="syn" class="sub" style="text-align:center;margin-top:28px">'+syncLabel+'</p>');
+ }catch(e){
+  document.getElementById("app").innerHTML='<div class="card"><b>Erreur d’affichage :</b> '+esc(e&&e.message||e)+'</div>';
+ }
+}
 function say(m){var e=document.getElementById("st");if(e)e.textContent=m}
 function ics(){
  var ev=S.tasks.filter(function(t){return!t.done&&t.date}).map(function(t){var d=t.date.replace(/-/g,""),e=new Date(t.date+"T00:00");e.setDate(e.getDate()+1);
@@ -246,6 +258,7 @@ var KIND={resume:"Résumé",fiche:"Fiche de révision",cartes:"Flashcards",quiz:
 document.addEventListener("click",async function(ev){
  var el=ev.target.closest("[data-a]");if(!el||el.tagName==="INPUT"&&el.type==="file")return;
  var a=el.dataset.a,id=el.dataset.id,v=function(i){var e=document.getElementById(i);return e?e.value.trim():""};
+ if(a==="theme"){toggleTheme();return}
  if(a==="key"){
   var cur=getApiKey();
   var next=prompt("Entre ta clé API Gemini (stockée uniquement sur cet appareil) :",cur);
