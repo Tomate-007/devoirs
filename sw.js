@@ -1,5 +1,5 @@
-var CACHE = "mes-devoirs-v1";
-var ASSETS = ["./", "./index.html", "./manifest.json"];
+var CACHE = "mes-devoirs-v2";
+var ASSETS = ["./", "./index.html", "./manifest.json", "./icon-192.png", "./icon-512.png"];
 
 self.addEventListener("install", function (ev) {
   ev.waitUntil(
@@ -25,13 +25,28 @@ self.addEventListener("fetch", function (ev) {
   var req = ev.request;
   var url = new URL(req.url);
 
-  // Ne jamais intercepter ou cacher les appels API Gemini ou les requêtes POST
   if (req.method !== "GET" || url.hostname.indexOf("generativelanguage.googleapis.com") !== -1) {
     return;
   }
 
-  // Même origine uniquement : cache-first avec mise à jour réseau
   if (url.origin === self.location.origin) {
+    var isPage = req.mode === "navigate" || url.pathname.endsWith("/") || url.pathname.endsWith(".html");
+
+    if (isPage) {
+      ev.respondWith(
+        fetch(req).then(function (res) {
+          if (res && res.status === 200) {
+            var copy = res.clone();
+            caches.open(CACHE).then(function (c) { c.put(req, copy); });
+          }
+          return res;
+        }).catch(function () {
+          return caches.match(req).then(function (c) { return c || caches.match("./index.html"); });
+        })
+      );
+      return;
+    }
+
     ev.respondWith(
       caches.match(req).then(function (cached) {
         var net = fetch(req).then(function (res) {
