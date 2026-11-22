@@ -73,6 +73,7 @@ nav button.on{background:color-mix(in srgb,var(--ac) 14%,transparent)}
 nav button{display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 4px}
 summary .ic{width:18px;height:18px}
 label.b{display:block;text-align:center;font:inherit;font-weight:600;padding:8px 10px;border:1px solid var(--ac);border-radius:10px;color:var(--acx);background:var(--ac);cursor:pointer;width:auto;box-shadow:0 3px 8px color-mix(in srgb,var(--ac) 30%,transparent)}
+.cview{margin-top:10px;border-top:1px solid var(--bd);padding-top:8px;white-space:pre-wrap;overflow-wrap:anywhere;font-size:15px}
 </style>
 </head>
 <body>
@@ -80,7 +81,7 @@ label.b{display:block;text-align:center;font:inherit;font-weight:600;padding:8px
 <nav id="nav"></nav>
 <script>
 var KEY="devoirs-v1",GEMINI_KEY_STORAGE="gemini-api-key-v1",GEMINI_MODEL="gemini-3.5-flash-lite";
-var S={tasks:[],courses:[],fiches:[],links:[]},tab="devoirs",busy="",pend=[],lo=false,openF={},weekOff=0;
+var S={tasks:[],courses:[],fiches:[],links:[]},tab="devoirs",busy="",pend=[],lo=false,openF={},openC={},weekOff=0;
 var TABS=[["devoirs","Devoirs"],["agenda","Agenda"],["cours","Cours"],["fiches","Fiches"]];
 try{var r=localStorage.getItem(KEY);if(r)S=Object.assign(S,JSON.parse(r))}catch(e){}
 var dbR=null,syncLabel="",pushT=null;
@@ -138,7 +139,7 @@ function vCours(){
  var h='<h1>Numériser un cours</h1><p class="sub">Prends en photo tes pages de cours : le texte est extrait automatiquement (modifiable), puis tu crées des fiches à la demande.</p>';
  h+='<div class="card"><div class="row"><input id="cs" placeholder="Matière" list="subs"><input id="ct" placeholder="Titre du cours"></div><div class="row" style="margin-top:8px"><label class="b" style="text-align:center;cursor:pointer">'+ico("cours")+' Photos / scans<input type="file" accept="image/*" multiple data-a="pics" hidden></label><button class="b p" data-a="ocr"'+(pend.length&&!busy?"":" disabled")+'>Extraire le texte ('+pend.length+')</button></div><div class="st">'+(busy==="ocr"?"Lecture des pages en cours…":"")+'</div><textarea id="cx" placeholder="…ou colle / tape directement ton cours ici" style="margin-top:8px;min-height:140px"></textarea><div class="row" style="margin-top:8px"><button class="b p" data-a="savec">Enregistrer le cours</button></div></div>';
  h+='<h2>Mes cours</h2>';
- h+=S.courses.length?S.courses.slice().reverse().map(function(c){return'<div class="card" style="--h:'+hue(c.subject)+'"><div class="t"><div class="m"><div class="ti">'+esc(c.title)+'</div><span class="tag">'+esc(c.subject||"Autre")+'</span><span class="sub">'+c.text.length+' caractères</span></div><button class="x" data-a="delc" data-id="'+c.id+'" aria-label="Supprimer">×</button></div><div class="row" style="margin-top:8px">'+[["resume","Résumé"],["fiche","Fiche de révision"],["cartes","Flashcards"],["quiz","Quiz"]].map(function(f){return'<button class="b" data-a="gen" data-k="'+f[0]+'" data-id="'+c.id+'"'+(busy?" disabled":"")+'>'+f[1]+'</button>'}).join("")+'</div>'+(busy==="gen"+c.id?'<div class="st">Création de la fiche…</div>':"")+'</div>'}).join(""):'<div class="empty">Aucun cours enregistré.</div>';
+ h+=S.courses.length?S.courses.slice().reverse().map(function(c){return'<div class="card" style="--h:'+hue(c.subject)+'"><div class="t"><div class="m"><div class="ti">'+esc(c.title)+'</div><span class="tag">'+esc(c.subject||"Autre")+'</span><span class="sub">'+c.text.length+' caractères</span></div><button class="x" data-a="delc" data-id="'+c.id+'" aria-label="Supprimer">×</button></div><div class="row" style="margin-top:8px"><button class="b" data-a="viewc" data-id="'+c.id+'">'+(openC[c.id]?"Masquer":"Voir")+'</button><button class="b" data-a="pdfc" data-id="'+c.id+'">Export PDF</button>'+[["fiche","Fiche de révision"],["quiz","Quiz"]].map(function(f){return'<button class="b" data-a="gen" data-k="'+f[0]+'" data-id="'+c.id+'"'+(busy?" disabled":"")+'>'+f[1]+'</button>'}).join("")+'</div>'+(openC[c.id]?'<div class="cview">'+esc(c.text)+'</div>':"")+(busy==="gen"+c.id?'<div class="st">Création de la fiche…</div>':"")+'</div>'}).join(""):'<div class="empty">Aucun cours enregistré.</div>';
  return h}
 function vFiches(){
  var h='<h1>Mes fiches</h1>';
@@ -163,6 +164,83 @@ async function dl(name,data,type){
   setTimeout(function(){URL.revokeObjectURL(u)},1500);
   say("Téléchargement lancé ("+name+").")
  }catch(e){say("Téléchargement indisponible ici : utilise « Copier » ou ouvre la page dans ton navigateur.")}}
+function makeCoursePDF(c){
+ function win1252(str){
+  var map={0x20AC:0x80,0x201A:0x82,0x0192:0x83,0x201E:0x84,0x2026:0x85,0x2020:0x86,0x2021:0x87,0x02C6:0x88,0x2030:0x89,0x0160:0x8A,0x2039:0x8B,0x0152:0x8C,0x017D:0x8E,0x2018:0x91,0x2019:0x92,0x201C:0x93,0x201D:0x94,0x2022:0x95,0x2013:0x96,0x2014:0x97,0x02DC:0x98,0x2122:0x99,0x0161:0x9A,0x203A:0x9B,0x0153:0x9C,0x017E:0x9E,0x0178:0x9F};
+  var out="";
+  for(var i=0;i<str.length;i++){
+   var code=str.charCodeAt(i);
+   if(code<256)out+=String.fromCharCode(code);
+   else if(map[code])out+=String.fromCharCode(map[code]);
+   else out+="?"
+  }
+  return out.replace(/\\/g,"\\\\").replace(/\(/g,"\\(").replace(/\)/g,"\\)")
+ }
+ function wrap(txt,max){
+  var res=[];
+  String(txt||"").replace(/\r\n?/g,"\n").split("\n").forEach(function(par){
+   if(!par.trim()){res.push("");return}
+   var words=par.split(/\s+/),cur="";
+   words.forEach(function(w){
+    while(w.length>max){
+     if(cur){res.push(cur);cur=""}
+     res.push(w.slice(0,max));w=w.slice(max)
+    }
+    if(!cur)cur=w;
+    else if((cur+" "+w).length<=max)cur+=" "+w;
+    else{res.push(cur);cur=w}
+   });
+   if(cur)res.push(cur)
+  });
+  return res
+ }
+ var titleLines=wrap(c.title||"Cours",58);
+ var metaLine=(c.subject?c.subject+" — ":"")+"Exporté le "+new Date().toLocaleDateString("fr-FR");
+ var bodyLines=wrap(c.text||"",82);
+ var items=[];
+ titleLines.forEach(function(l){items.push({t:l,f:"F2",s:16,h:22})});
+ items.push({t:metaLine,f:"F1",s:10,h:18});
+ items.push({t:"",f:"F1",s:11,h:10});
+ bodyLines.forEach(function(l){items.push({t:l,f:"F1",s:11,h:15})});
+ var pages=[],cur=[],y=790;
+ items.forEach(function(it){
+  if(y-it.h<50){pages.push(cur);cur=[];y=790}
+  cur.push({t:it.t,f:it.f,s:it.s,y:y});
+  y-=it.h
+ });
+ if(cur.length)pages.push(cur);
+ var objs=[];
+ function addObj(s){objs.push(s);return objs.length}
+ var f1=addObj("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>");
+ var f2=addObj("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>");
+ var pagesId=objs.length+1;
+ objs.push("");
+ var pageIds=[];
+ pages.forEach(function(pg){
+  var stream="BT\n";
+  pg.forEach(function(ln){
+   if(ln.t)stream+="/"+ln.f+" "+ln.s+" Tf 1 0 0 1 50 "+ln.y+" Tm ("+win1252(ln.t)+") Tj\n"
+  });
+  stream+="ET\n";
+  var cId=addObj("<< /Length "+stream.length+" >>\nstream\n"+stream+"endstream");
+  var pId=addObj("<< /Type /Page /Parent "+pagesId+" 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 "+f1+" 0 R /F2 "+f2+" 0 R >> >> /Contents "+cId+" 0 R >>");
+  pageIds.push(pId)
+ });
+ objs[pagesId-1]="<< /Type /Pages /Kids ["+pageIds.map(function(id){return id+" 0 R"}).join(" ")+"] /Count "+pageIds.length+" >>";
+ var catId=addObj("<< /Type /Catalog /Pages "+pagesId+" 0 R >>");
+ var pdf="%PDF-1.4\n",offs=[0];
+ objs.forEach(function(o,i){
+  offs.push(pdf.length);
+  pdf+=(i+1)+" 0 obj\n"+o+"\nendobj\n"
+ });
+ var xref=pdf.length;
+ pdf+="xref\n0 "+(objs.length+1)+"\n0000000000 65535 f \n";
+ for(var i=1;i<offs.length;i++)pdf+=String(offs[i]).padStart(10,"0")+" 00000 n \n";
+ pdf+="trailer\n<< /Size "+(objs.length+1)+" /Root "+catId+" 0 R >>\nstartxref\n"+xref+"\n%%EOF";
+ var bytes=new Uint8Array(pdf.length);
+ for(var j=0;j<pdf.length;j++)bytes[j]=pdf.charCodeAt(j)&255;
+ return bytes
+}
 function parseICS(t){var out=[];t.replace(/\r?\n[ \t]/g,"").split("BEGIN:VEVENT").slice(1).forEach(function(b){
  var s=/SUMMARY[^:]*:(.*)/.exec(b),d=/DTSTART[^:]*:(\d{4})(\d{2})(\d{2})/.exec(b),n=/DESCRIPTION[^:]*:(.*)/.exec(b);
  if(s&&d)out.push({id:uid(),subject:"",title:s[1].trim(),date:d[1]+"-"+d[2]+"-"+d[3],prio:1,done:false,notes:n?n[1].trim():""})});return out}
@@ -213,8 +291,8 @@ async function ask(prompt,opts){
  return await callGemini(prompt,opts||{})}
 function err(e,where){busy="";render();var m=e&&e.code==="missing_key"?"Clé API Gemini manquante. Réessaie et saisis ta clé API Gemini.":e&&e.code==="bad_key"?"Clé API Gemini invalide ou refusée : elle a été effacée, réessaie avec une clé valide.":e&&e.code==="none"?"L’IA n’est pas disponible dans cette vue.":e&&e.code==="not_granted"?"Autorisation refusée : accepte la demande pour utiliser l’IA.":e&&e.code==="rate_limited"?"Trop de demandes, réessaie dans un moment.":"Une erreur est survenue avec Gemini, réessaie.";alert(m)}
 
-var PROMPTS={resume:"Écris un résumé clair et concis (10 à 15 lignes max) de ce cours, en français, avec les idées clés en **gras**.",fiche:"Crée une fiche de révision structurée en français : titres (## ), listes à puces, définitions, formules, dates ou exemples importants. Reste synthétique et mémorisable.",cartes:"Crée 10 flashcards en français pour réviser ce cours. Format exact, une par bloc : « **Q :** question » puis une ligne « **R :** réponse ».",quiz:"Crée un quiz de 8 questions en français sur ce cours, avec 3 choix (A, B, C) pour chacune. Termine par une section « ## Corrigé » avec les bonnes réponses et une courte explication."};
-var KIND={resume:"Résumé",fiche:"Fiche de révision",cartes:"Flashcards",quiz:"Quiz"};
+var PROMPTS={fiche:"Crée une fiche de révision structurée en français : titres (## ), listes à puces, définitions, formules, dates ou exemples importants. Reste synthétique et mémorisable.",quiz:"Crée un quiz de 8 questions en français sur ce cours, avec 3 choix (A, B, C) pour chacune. Termine par une section « ## Corrigé » avec les bonnes réponses et une courte explication."};
+var KIND={fiche:"Fiche de révision",quiz:"Quiz"};
 document.addEventListener("click",async function(ev){
  var el=ev.target.closest("[data-a]");if(!el||el.tagName==="INPUT"&&el.type==="file")return;
  var a=el.dataset.a,id=el.dataset.id,v=function(i){var e=document.getElementById(i);return e?e.value.trim():""};
@@ -240,7 +318,9 @@ document.addEventListener("click",async function(ev){
   }catch(e){err(e)}return}
  if(a==="savec"){var t=v("cx");if(!t){document.getElementById("cx").focus();return}
   S.courses.push({id:uid(),subject:v("cs"),title:v("ct")||"Cours du "+fmt(TODAY),text:t});save();["cs","ct","cx"].forEach(function(i){document.getElementById(i).value=""});render();return}
- if(a==="delc"){S.courses=S.courses.filter(function(c){return c.id!==id});save();render();return}
+ if(a==="delc"){delete openC[id];S.courses=S.courses.filter(function(c){return c.id!==id});save();render();return}
+ if(a==="viewc"){openC[id]=!openC[id];render();return}
+ if(a==="pdfc"){var c=S.courses.filter(function(c){return c.id===id})[0];if(!c)return;var fn=(c.title||"Cours").replace(/[^\w\- àâçéèêëîïôûùü]/gi,"").trim()||"Cours";dl(fn+".pdf",makeCoursePDF(c),"application/pdf");return}
  if(a==="gen"){var c=S.courses.filter(function(c){return c.id===id})[0],k=el.dataset.k;if(!c||busy)return;busy="gen"+id;render();
   try{var txt=await ask(PROMPTS[k]+"\n\nMatière : "+(c.subject||"non précisée")+"\nTitre : "+c.title+"\n\nCours :\n"+c.text.slice(0,24000),{cache:false});
    S.fiches.push({id:uid(),title:c.title,subject:c.subject,kind:KIND[k],content:txt});save();busy="";tab="fiches";render()}catch(e){err(e)}return}
